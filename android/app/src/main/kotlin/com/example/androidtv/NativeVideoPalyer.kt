@@ -11,6 +11,8 @@ import android.view.SurfaceHolder // Import SurfaceHolder for SurfaceView
 import android.view.SurfaceView // Import SurfaceView to display the video
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.MediaController
+import android.widget.VideoView
 
 import androidx.core.net.toUri
 import com.example.androidtv.MainActivity
@@ -89,16 +91,22 @@ class NativePlayerView(
         rootView.addView(surfaceView)
 
         // 2. Initialize the MediaPlayer
-        mediaPlayer = MediaPlayer()
+        mediaPlayer = MediaPlayer().apply {
+            setOnPreparedListener(this@NativePlayerView)
+            setOnErrorListener { _, what, extra ->
+                mainActivity.sendFrameData(mapOf("error" to "Media error: $what/$extra"))
+                true
+            }
+        }
         mediaPlayer?.setOnPreparedListener(this)
 
         // Process creation parameters
         videoUrl = creationParams?.get("initialUrl") as? String
     }
 
-    override fun getView(): View {
-        return rootView
-    }
+
+    override fun getView(): View = rootView
+
 // ----------------------------------------------------------------------
 // MediaPlayer State Management
 // ----------------------------------------------------------------------
@@ -106,6 +114,15 @@ class NativePlayerView(
     /**
      * Loads the video by setting the data source and preparing the player asynchronously.
      */
+
+    fun onPause() {
+        mediaPlayer?.pause()
+    }
+
+    fun onResume() {
+        mediaPlayer?.start()
+    }
+
      fun loadVideo(url: String) {
         videoUrl = url
         io.flutter.Log.e("URI","$videoUrl")
@@ -119,7 +136,9 @@ class NativePlayerView(
 
                 // Prepare the player in the background (critical for non-local files)
                 player.prepareAsync()
-                mainActivity.sendFrameData("onLoading")
+
+
+                mainActivity.sendFrameData( player.isPlaying.toString())
             } catch (e: Exception) {
                 mainActivity.sendFrameData( mapOf("message" to "Failed to load: ${e.message}"))
             }

@@ -12,7 +12,7 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.StandardMessageCodec
 
 class MainActivity: FlutterActivity() {
-    private val CHANNEL = "com.example/native_player"
+    private val CHANNEL ="com.example/native_player_$id"
     private var mediaPlayer: MediaPlayer? = null
     private var methodChannel: MethodChannel? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -42,6 +42,7 @@ class MainActivity: FlutterActivity() {
             when (call.method) {
                 "loadVideo" -> {
                     val url = call.argument<String>("url")
+                    io.flutter.Log.e("URL", "Loading URL: $url")
                     if (url != null) {
                         // Check if the surface is already created before loading
                         if (nativeViewFactory.nativePlayerView?.surfaceView?.holder?.surface?.isValid ?: false) {

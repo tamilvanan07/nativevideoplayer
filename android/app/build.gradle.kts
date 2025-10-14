@@ -50,6 +50,7 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
  }
+    buildToolsVersion = "36.0.0"
 } 
 
 flutter {

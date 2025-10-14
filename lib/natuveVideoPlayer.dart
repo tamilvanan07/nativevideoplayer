@@ -14,79 +14,70 @@ class _NativeVideoPlayerState extends State<NativeVideoPlayer> {
   static const String viewType = 'videoPlayer';
 
   MediaPlayerService? _controller;
-  bool _isDisposed = false;
 
   @override
   void dispose() {
-    _isDisposed = true;
-    _disposeController();
+    // _controller?.dispose();
     super.dispose();
-  }
-
-  Future<void> _disposeController() async {
-    if (_controller != null) {
-      await _controller!.dispose();
-      _controller = null;
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: MediaQuery.sizeOf(context).height,
+      height: MediaQuery.sizeOf(
+        context,
+      ).height, // Give the native view a fixed size
       child: AndroidView(
         viewType: viewType,
+        // Callback when the native view is created and returns its ID
         onPlatformViewCreated: (int id) {
-          if (_isDisposed) return;
-
-          print("VIEW ID: $id, Path: ${widget.path}");
-
+          print("VIEW ID ${widget.path}");
+          // Initialize the Dart controller with the unique ID
           MediaPlayerService.onPlatformViewCreated(id, (controller) async {
-            if (_isDisposed) {
-              controller.dispose();
-              return;
-            }
+            setState(() {
+              _controller = controller;
+            });
 
-            if (mounted) {
-              setState(() {
-                _controller = controller;
-              });
-            }
+            // Example: Automatically load a video when the view is ready
+            var res = await _controller?.loadVideo(widget.path ?? "");
 
-            // Set up completion listener
-            _controller!.onCompletion = () {
-              print("Video playback completed");
-              if (!_isDisposed && mounted) {
-                _disposeController();
-              }
-            };
-
-            // Set up error listener
-            _controller!.onError = (message) {
-              print("Video error: $message");
-              if (!_isDisposed && mounted) {
-                _disposeController();
-              }
-            };
-
-            // Load and play video
-            try {
-              var res = await _controller?.loadVideo(widget.path ?? "");
-              print("Load video response: $res");
-
-              if (res == 'success' && !_isDisposed) {
-                await _controller?.play();
-              }
-            } catch (e) {
-              print("Error loading/playing video: $e");
-              if (!_isDisposed && mounted) {
-                _disposeController();
-              }
-            }
+            print("RESPONSE $res");
           });
         },
+        // The codec handles basic data types; necessary for Method Channels
         creationParamsCodec: const StandardMessageCodec(),
       ),
     );
   }
 }
+
+//  PlatformViewLink(
+//         viewType: viewType,
+//         // Callback when the native view is created and returns its ID
+//         // The codec handles basic data types; necessary for Method Channels
+//         surfaceFactory: (context, controller) {
+//           return AndroidViewSurface(
+//             controller: controller as AndroidViewController,
+//             gestureRecognizers: const <Factory<OneSequenceGestureRecognizer>>{},
+//             hitTestBehavior: PlatformViewHitTestBehavior.opaque,
+//           );
+//         },
+//         onCreatePlatformView: (PlatformViewCreationParams params) {
+//           MediaPlayerService.onPlatformViewCreated(params.id, (service) {
+//             service.onPrepared = (duration) {
+//               print('Video ready, duration: $duration');
+//             };
+//             service.loadVideo(widget.path ?? "");
+//           });
+//           _currentController = PlatformViewsService.initSurfaceAndroidView(
+//             id: params.id,
+//             viewType: viewType,
+//             layoutDirection: TextDirection.ltr,
+//             creationParams: {'': 'https://example.com/video.mp4'},
+//             creationParamsCodec: const StandardMessageCodec(),
+//           )..create();
+//           {
+//             return _currentController!;
+//           }
+//         },
+//       ),

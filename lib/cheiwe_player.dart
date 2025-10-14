@@ -2,8 +2,10 @@ import 'package:androidtv/logger/logger_file.dart';
 import 'package:androidtv/natuveVideoPlayer.dart';
 import 'package:androidtv/service/mediaService.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:chewie/chewie.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_carousel_slider/carousel_slider.dart';
 // import 'package:flutter_vlc_player/flutter_vlc_player.dart';
@@ -233,6 +235,8 @@ class _VideoPlayerScreenChiweState extends State<VideoPlayerScreenChiwe> {
     'av1',
   ];
 
+  static const String viewType = 'videoPlayer';
+
   @override
   void initState() {
     super.initState();
@@ -250,33 +254,56 @@ class _VideoPlayerScreenChiweState extends State<VideoPlayerScreenChiwe> {
     ParallaxTransform(),
   ];
 
-  void _onPageChanged(int index) async {
-    if (!mounted) return;
+  final Map<int, MediaPlayerService> _players = {};
 
-    // Pause current video before switching
-    if (videoControllers.containsKey(currentIndex)) {
-      videoControllers[currentIndex]?.pause();
-    }
+  void _onPageChanged(int index) {
+    setState(() => currentIndex = index);
 
-    setState(() {
-      currentIndex = index;
+    // Pause all other videos
+    _players.forEach((i, p) {
+      if (i == index) {
+        p.play();
+      } else {
+        p.pause();
+      }
     });
-
-    if (widget.videoItems[index].type == 'video') {
-      _playCurrentVideo();
-    }
   }
 
-  void _playCurrentVideo() {
-    if (videoControllers.containsKey(currentIndex) &&
-        videoErrors[currentIndex] == null) {
-      videoControllers[currentIndex]?.play();
-    }
+  // void _onPageChanged(int index) async {
+  //   if (!mounted) return;
+
+  //   // Pause current video before switching
+  //   if (videoControllers.containsKey(currentIndex)) {
+  //     videoControllers[currentIndex]?.pause();
+  //   }
+
+  //   setState(() {
+  //     currentIndex = index;
+  //   });
+
+  //   if (widget.videoItems[index].type == 'video') {
+  //     _playCurrentVideo();
+  //   }
+  // }
+
+  void _onViewCreated(int id, int index) {
+    MediaPlayerService.onPlatformViewCreated(id, (service) {
+      _players[index] = service;
+      service.loadVideo(widget.videoItems[index].localPath ?? "");
+    });
   }
 
-  static const String viewType = 'videoPlayer';
+  // static const String viewType = 'videoPlayer';
 
   MediaPlayerService? _controller;
+
+  @override
+  void dispose() {
+    for (final player in _players.values) {
+      player.pause();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -364,7 +391,12 @@ class _VideoPlayerScreenChiweState extends State<VideoPlayerScreenChiwe> {
                 //     );
                 //   }
 
-                return NativeVideoPlayer(path: item.localPath);
+                return VideoCarouselItem(
+                  playerId: index,
+                  videoUrl: item.localPath ?? "",
+                );
+
+                // NativeVideoPlayer(path: item.localPath);
 
                 //  SizedBox(
                 //   height: MediaQuery.sizeOf(
@@ -447,18 +479,67 @@ class _VideoPlayerScreenChiweState extends State<VideoPlayerScreenChiwe> {
     );
   }
 
-  @override
-  void dispose() {
-    // Properly dispose all controllers
-    for (var controller in chewieControllers.values) {
-      controller.dispose();
-    }
-    for (var controller in videoControllers.values) {
-      controller.dispose();
-    }
-    super.dispose();
+  Widget _buildNativeView(int index) {
+    return AndroidView(
+      viewType: viewType,
+      // Callback when the native view is created and returns its ID
+      onPlatformViewCreated: (int id) {
+        print("VIEW ID ${widget.videoItems[index].localPath}");
+        // Initialize the Dart controller with the unique ID
+        MediaPlayerService.onPlatformViewCreated(id, (controller) async {
+          setState(() {
+            _controller = controller;
+          });
+
+          // Example: Automatically load a video when the view is ready
+          var res = await _controller?.loadVideo(
+            widget.videoItems[index].localPath,
+          );
+
+          print("RESPONSE $res");
+        });
+      },
+      // The codec handles basic data types; necessary for Method Channels
+      creationParamsCodec: const StandardMessageCodec(),
+    );
+
+    // PlatformViewLink(
+    //   viewType: viewType,
+    //   onCreatePlatformView: (params) {
+    //     final controller = PlatformViewsService.initSurfaceAndroidView(
+    //       id: params.id,
+    //       viewType: viewType,
+    //       layoutDirection: TextDirection.ltr,
+    //       creationParams: {'url': widget.videoItems[index].localPath ?? ""},
+    //       creationParamsCodec: const StandardMessageCodec(),
+    //     );
+
+    //     controller.create();
+    //     _onViewCreated(params.id, index);
+    //     return controller;
+    //   },
+    //   surfaceFactory: (context, controller) {
+    //     return AndroidViewSurface(
+    //       controller: controller as AndroidViewController,
+    //       gestureRecognizers: const <Factory<OneSequenceGestureRecognizer>>{},
+    //       hitTestBehavior: PlatformViewHitTestBehavior.opaque,
+    //     );
+    //   },
+    // );
   }
 }
+
+// @override
+// void dispose() {
+//   // Properly dispose all controllers
+//   for (var controller in chewieControllers.values) {
+//     controller.dispose();
+//   }
+//   for (var controller in videoControllers.values) {
+//     controller.dispose();
+//   }
+//   super.dispose();
+// }
 
 // Settings Dialog
 class VideoSettingsDialog extends StatefulWidget {
@@ -551,6 +632,72 @@ class _VideoSettingsDialogState extends State<VideoSettingsDialog> {
           child: Text('Save'),
         ),
       ],
+    );
+  }
+}
+
+const String CHANNEL_NAME_BASE = "com.example/native_player_";
+
+// 2. This would be part of your Carousel Slider's build/state logic
+class VideoCarouselItem extends StatelessWidget {
+  // The unique ID for this specific player instance (e.g., the carousel index)
+  final int playerId;
+  final String videoUrl;
+
+  const VideoCarouselItem({
+    super.key,
+    required this.playerId,
+    required this.videoUrl,
+  });
+
+  // Method to get a reference to this player's channel
+  MethodChannel get playerChannel =>
+      MethodChannel('$CHANNEL_NAME_BASE$playerId');
+
+  // Function to call a native method
+  Future<void> loadNewVideo(String url) async {
+    try {
+      final String result = await playerChannel.invokeMethod('loadVideo', {
+        'url': url,
+      });
+      print("Load successful: $result");
+    } catch (e) {
+      print("Failed to load video: $e");
+    }
+  }
+
+  // Function to call 'play'
+  Future<void> playVideo() async {
+    await playerChannel.invokeMethod('play');
+  }
+
+  // Function to call 'pause'
+  Future<void> pauseVideo() async {
+    await playerChannel.invokeMethod('pause');
+  }
+
+  static const String viewType = 'videoPlayer';
+
+  @override
+  Widget build(BuildContext context) {
+    // 3. Use the AndroidView widget to embed the native player.
+    // The 'creationParams' map is how you send the 'initialUrl' and potentially other data.
+    return AndroidView(
+      viewType:
+          viewType, // This must match the name registered in the Android ViewFactory
+      onPlatformViewCreated: (int viewId) {
+        // The 'viewId' returned here is the same 'id' you passed to the factory.
+        // It should match 'playerId' if your logic is correct.
+        print('Platform View $viewId created.');
+
+        // When the slide becomes the primary/current one, you can call play:
+        if (playerId == 0 /* Current active index */ ) {
+          playVideo();
+        }
+      },
+      // You can pass the initial URL here
+      creationParams: <String, dynamic>{'initialUrl': videoUrl},
+      creationParamsCodec: const StandardMessageCodec(),
     );
   }
 }
