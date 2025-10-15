@@ -314,8 +314,10 @@ class _VideoPlayerScreenChiweState extends State<VideoPlayerScreenChiwe> {
           children: [
             CarouselSlider.builder(
               controller: carouselController,
-              slideTransform: transition[currentIndex % transition.length],
+              slideTransform: FlipHorizontalTransform(),
+              // slideTransform: transition[currentIndex % transition.length],
               enableAutoSlider: true,
+
               autoSliderDelay: Duration(
                 seconds: int.parse(
                   widget.videoItems[selectedIndex].timer.toString(),
@@ -639,7 +641,7 @@ class _VideoSettingsDialogState extends State<VideoSettingsDialog> {
 const String CHANNEL_NAME_BASE = "com.example/native_player_";
 
 // 2. This would be part of your Carousel Slider's build/state logic
-class VideoCarouselItem extends StatelessWidget {
+class VideoCarouselItem extends StatefulWidget {
   // The unique ID for this specific player instance (e.g., the carousel index)
   final int playerId;
   final String videoUrl;
@@ -650,9 +652,27 @@ class VideoCarouselItem extends StatelessWidget {
     required this.videoUrl,
   });
 
+  static const String viewType = 'videoPlayer';
+
+  @override
+  State<VideoCarouselItem> createState() => _VideoCarouselItemState();
+}
+
+class _VideoCarouselItemState extends State<VideoCarouselItem> {
+  MediaPlayerService? _controller;
+
+  final bool _isDisposed = false;
+
   // Method to get a reference to this player's channel
   MethodChannel get playerChannel =>
-      MethodChannel('$CHANNEL_NAME_BASE$playerId');
+      MethodChannel('$CHANNEL_NAME_BASE${widget.playerId}');
+
+  Future<void> _disposeController() async {
+    if (_controller != null) {
+      await _controller!.dispose();
+      _controller = null;
+    }
+  }
 
   // Function to call a native method
   Future<void> loadNewVideo(String url) async {
@@ -676,27 +696,43 @@ class VideoCarouselItem extends StatelessWidget {
     await playerChannel.invokeMethod('pause');
   }
 
-  static const String viewType = 'videoPlayer';
-
   @override
   Widget build(BuildContext context) {
     // 3. Use the AndroidView widget to embed the native player.
     // The 'creationParams' map is how you send the 'initialUrl' and potentially other data.
     return AndroidView(
-      viewType:
-          viewType, // This must match the name registered in the Android ViewFactory
+      viewType: VideoCarouselItem
+          .viewType, // This must match the name registered in the Android ViewFactory
       onPlatformViewCreated: (int viewId) {
-        // The 'viewId' returned here is the same 'id' you passed to the factory.
-        // It should match 'playerId' if your logic is correct.
-        print('Platform View $viewId created.');
+        if (_isDisposed) return;
+        MediaPlayerService.onPlatformViewCreated(viewId, (controller) async {
+          if (_isDisposed) {
+            controller.dispose();
+            return;
+          }
 
-        // When the slide becomes the primary/current one, you can call play:
-        if (playerId == 0 /* Current active index */ ) {
-          playVideo();
-        }
+          if (mounted) {
+            setState(() {
+              _controller = controller;
+            });
+          }
+          try {
+            var res = await _controller?.loadVideo(widget.videoUrl);
+            print("Load video response: $res");
+
+            if (res == 'success' && !_isDisposed) {
+              await _controller?.play();
+            }
+          } catch (e) {
+            print("Error loading/playing video: $e");
+            if (!_isDisposed && mounted) {
+              _disposeController();
+            }
+          }
+        });
       },
       // You can pass the initial URL here
-      creationParams: <String, dynamic>{'initialUrl': videoUrl},
+      creationParams: <String, dynamic>{'initialUrl': widget.videoUrl},
       creationParamsCodec: const StandardMessageCodec(),
     );
   }

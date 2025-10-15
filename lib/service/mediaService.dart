@@ -5,8 +5,11 @@ class MediaPlayerService {
   final MethodChannel _channel;
   // static const MethodChannel _channel = MethodChannel('com.example.mediaplayer/channel');
 
+  bool _isDisposed = false;
   MediaPlayerService._(int id)
-    : _channel = MethodChannel('com.example/native_player_$id');
+    : _channel = MethodChannel('com.example/native_player_$id') {
+    _setupCallbacks();
+  }
 
   static void onPlatformViewCreated(
     int id,
@@ -30,9 +33,47 @@ class MediaPlayerService {
     return response.toString();
   }
 
+  void _setupCallbacks() {
+    _channel.setMethodCallHandler((call) async {
+      if (_isDisposed) return;
+
+      switch (call.method) {
+        case 'onPrepared':
+          int duration = call.arguments['duration'] as int;
+          onPrepared?.call(duration);
+          break;
+        case 'onPlaybackStateChanged':
+          bool isPlaying = call.arguments['isPlaying'] as bool;
+          onPlaybackStateChanged?.call(isPlaying);
+          break;
+        case 'onPositionChanged':
+          int position = call.arguments['position'] as int;
+          onPositionChanged?.call(position);
+          break;
+        case 'onCompletion':
+          onCompletion?.call();
+          break;
+        case 'onError':
+          String message = call.arguments['message'] as String;
+          onError?.call(message);
+          break;
+        case 'onBufferingUpdate':
+          int percent = call.arguments['percent'] as int;
+          onBufferingUpdate?.call(percent);
+          break;
+      }
+    });
+  }
+
   Future<void> play() async {
+    if (_isDisposed) return;
+    try {
+      // Invoke the simple 'play' method.
+      return await _channel.invokeMethod('play');
+    } on PlatformException catch (e) {
+      onError?.call('Play failed: ${e.message}');
+    }
     // Invoke the simple 'play' method.
-    return _channel.invokeMethod('play');
   }
 
   Future<void> pause() async {
@@ -48,6 +89,17 @@ class MediaPlayerService {
   Future<void> backward() async {
     // Invoke the 'backward' method (will seek by the native 10 seconds).
     return _channel.invokeMethod('backward');
+  }
+
+  Future<void> dispose() async {
+    if (_isDisposed) return;
+    _isDisposed = true;
+
+    try {
+      await _channel.invokeMethod('dispose');
+    } catch (e) {
+      print('dispose error: $e');
+    }
   }
 }
 

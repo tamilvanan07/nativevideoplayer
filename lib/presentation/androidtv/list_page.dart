@@ -108,16 +108,18 @@ class _ListScreenState extends State<ListScreen> {
       {
         'id': 'video_1',
         'title': 'BigBuckBunny',
-        'url': 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        'url':
+            'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
         'type': 'video',
-        'timer': '60',
+        'timer': '10',
       },
       {
         'id': 'video_2',
         'title': 'ElephantsDream',
-        'url': 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+        'url':
+            'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
         'type': 'video',
-        'timer': '60',
+        'timer': '10',
       },
       {
         'id': 'video_3',
@@ -125,28 +127,28 @@ class _ListScreenState extends State<ListScreen> {
         'url':
             'https://gleneagles.com/wp-content/uploads/sites/7/2020/02/Gleneagles_Weddings.mp4',
         'type': 'video',
-        'timer': '34',
+        'timer': '10',
       },
       {
         'id': 'image_1',
         'title': 'Nature Image 1',
         'url': 'https://picsum.photos/800/600?random=1',
         'type': 'image',
-        'timer': '30',
+        'timer': '10',
       },
       {
         'id': 'image_2',
         'title': 'Nature Image 2',
         'url': 'https://picsum.photos/800/600?random=2',
         'type': 'image',
-        'timer': '30',
+        'timer': '10',
       },
       {
         'id': 'image_3',
         'title': 'Nature Image 3',
         'url': 'https://picsum.photos/800/600?random=3',
         'type': 'image',
-        'timer': '30',
+        'timer': '10',
       },
     ];
 
